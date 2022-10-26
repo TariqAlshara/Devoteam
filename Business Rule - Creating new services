@@ -1,0 +1,89 @@
+(function executeRule(current, previous /*null when async*/ ) {
+
+    // This segment is for category creation //
+
+    var grCat = new GlideRecord('sc_category');
+    grCat.addQuery('title', current.u_category);
+    grCat.query();
+    var categorySysId = '-1';
+
+    if (grCat.next()) {
+		
+        categorySysId = grCat.getUniqueValue();
+        
+	} else {
+		
+        grCat.initialize();
+        grCat.title = current.u_category;
+        grCat.insert();
+        categorySysId = grCat.getUniqueValue();
+
+		//This sub-segment is to grab the catalog value
+        var grCtg = new GlideRecord('sc_catalog');
+        grCtg.addQuery('title', 'Service Catalog');
+        grCtg.query();
+        //NEED TO ADD VALIDATION TO CHECK FOR SC OR IC
+        while (grCtg.next()) {
+        grCat.sc_catalog = grCtg.getUniqueValue();
+		grCat.update();
+    }
+    }
+
+    ////////////////////////////////////////////
+
+
+    //This segment is for catalog item creation//
+
+    var grCit = new GlideRecord('sc_cat_item');
+    grCit.addQuery('name', current.u_catalog_item);
+    grCit.query();
+    var grCitSysId = '-1';
+
+    if (!grCit.next()) {
+        grCit.initialize();
+        grCit.name = current.u_catalog_item;
+        grCit.sc_catalogs = grCtg.getUniqueValue();
+        grCit.category = categorySysId;
+        grCit.short_description = current.u_catalog_item_short_description;
+       
+        grCit.insert();
+        grCitSysId = grCit.getUniqueValue();
+    } else {
+
+        grCitSysId = grCit.getUniqueValue();
+        
+    }
+
+    ////////////////////////////////////////////
+
+
+    //This segment is for variable creation//
+
+    var grVar = new GlideRecord('item_option_new');
+    grVar.initialize();
+    grVar.question_text = current.u_variable_name;
+    grVar.name = current.u_variable_name.toString().toLowerCase().replace(/\s/g, '_');
+    grVar.type = current.u_variable_type;
+    grVar.order = current.u_variable_order;
+    grVar.cat_item = grCitSysId;
+    grVar.insert();
+
+    /////////////////////////////////////////
+
+    //This segment is for variable choice creation//
+
+    
+    var choices = current.getValue('u_variable_choices').split(',');
+    for (var i = 0; i < choices.length; i++) {
+        var grChc = new GlideRecord('question_choice');
+        grChc.initialize();
+        grChc.text = choices[i];
+        grChc.value = grChc.text.toString().toLowerCase().replace(/\s/g, '_');
+        grChc.question = grVar.getUniqueValue();
+        
+        grChc.insert();
+    }
+
+    ////////////////////////////////////////////////
+
+})(current, previous);
